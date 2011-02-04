@@ -1,0 +1,177 @@
+package com.imaginea.android.tabbar.api;
+
+
+import java.util.ArrayList;
+import java.util.EmptyStackException;
+import java.util.List;
+import java.util.Stack;
+
+import android.app.Activity;
+import android.app.ActivityGroup;
+import android.content.Intent;
+import android.view.View;
+
+
+public class ImActivityStack {
+	private Stack<Activity> activityStack;
+	private Stack<String> activityIds;
+	private Stack<Intent> intents;
+	private static  Integer currentActivityId = 7777;
+	private ActivityGroup context;
+	
+	protected ImActivityStack(ActivityGroup ctx)
+	{
+		this.context = ctx;
+		this.activityStack = new Stack<Activity>();
+		this.activityIds = new Stack<String>();
+		this.intents = new Stack<Intent>();
+	}
+	
+	/**
+	 * Starts the activity using intent
+	 * pushes it into the stack 
+	 * 
+	 * @param intent
+	 * @return Activity
+	 * 
+	 */
+	protected Activity push(Intent intent)
+	{
+		synchronized (ImActivityStack.class) {
+			View view = context.getLocalActivityManager().startActivity(currentActivityId.toString(), intent).getDecorView();
+			Activity activity = context.getLocalActivityManager().getActivity(currentActivityId.toString());
+			this.activityIds.push(currentActivityId.toString());
+			this.activityStack.push(activity);
+			this.intents.push(intent);
+			currentActivityId++;
+			return activity;
+		}
+	}
+	
+	
+	/**
+	 * Pops the activity from the stack and attempts to destroy it.
+	 * If this is the root activity in stack then it calls finish() 
+	 * on the Activity which kills the application.
+	 * 
+	 */
+	protected void pop()
+	{
+		String topActivityId = activityIds.pop();
+		Activity topActivity =  activityStack.pop();
+		intents.pop();
+		context.getLocalActivityManager().destroyActivity(topActivityId, true);
+		if(size()>0){
+			Activity prevActivity = activityStack.peek();
+		}
+		else
+		{
+			topActivity.finish();
+		}
+		
+		
+	}
+	
+	/**
+	 * @return Top Activity in the stack
+	 */
+	protected Activity peek()
+	{
+		return activityStack.peek();
+	}
+	
+	
+	
+	protected Activity activityAtIndex(int i)
+	{
+		if(i < 0)
+			throw new IllegalArgumentException("Negative indexes not allowed");
+		if(i >= activityStack.size())
+			throw new IndexOutOfBoundsException();
+		if(activityStack.size() == 0)
+			throw new EmptyStackException();
+		return activityStack.elementAt(i);
+		
+	}
+	
+	
+	/**
+	 * Finds the top Activity and return it's View
+	 * @return View
+	 */
+	protected View topView()
+	{
+		return viewFromActivity(activityStack.peek());
+	}
+	
+	
+	/**
+	 * @param activity
+	 * @return View from activity
+	 */
+	protected View viewFromActivity(Activity activity)
+	{
+		return activity.getWindow().getDecorView();
+	}
+	
+	protected int size()
+	{
+		return activityStack.size();
+	}
+	
+	
+	@Deprecated
+	/*destroys all activities but retains Intents to reCreate them when necessary*/
+	protected void clearStack()
+	{
+		while(activityStack.size() >0)
+		{
+			String topActivityId = activityIds.pop();
+			activityStack.pop();
+			context.getLocalActivityManager().destroyActivity(topActivityId, true);
+		}
+	}
+	
+	@Deprecated
+	/*completely destroys the stack by removing activities as well as intents*/
+	protected void destroyStack()
+	{
+		while(activityStack.size() >0)
+		{
+			String topActivityId = activityIds.pop();
+			activityStack.pop();
+			context.getLocalActivityManager().destroyActivity(topActivityId, true);
+			intents.pop();
+		}
+	}
+	
+	@Deprecated
+	protected  void restartAllActivitiesForGivenContext(ActivityGroup context)
+	{
+		this.context = context;
+		List<Intent> intents = new ArrayList<Intent>();
+		int count = size();
+		for(int i=0;i<count;i++)
+		{
+			Intent intent = this.intents.pop();
+			intents.add(0, intent);
+		}
+		this.intents.removeAllElements();
+		activityIds.removeAllElements();
+		activityStack.removeAllElements();
+		
+		for(Intent intent : intents)
+		{
+			synchronized (ImActivityStack.class) {
+				View view = context.getLocalActivityManager().startActivity(currentActivityId.toString(), intent).getDecorView();
+				Activity activity = context.getLocalActivityManager().getActivity(currentActivityId.toString());
+				this.activityIds.push(currentActivityId.toString());
+				this.activityStack.push(activity);
+				this.intents.push(intent);
+				currentActivityId++;
+			}
+		}
+		
+	}
+
+}

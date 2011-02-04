@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.imaginea.android.imtabbar.another.ITabHost 
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="fill_parent"
+  android:layout_height="fill_parent"
+  android:id="@+id/tabhost"
+  >
+	   
+	   <RelativeLayout
+	    android:layout_width="fill_parent"
+	    android:layout_height="fill_parent"
+	    >
+	    
+	    <com.imaginea.android.imtabbar.another.ITabWidget  
+	  android:id="@+id/tabs"
+	  android:layout_width="fill_parent"
+	  android:layout_height="wrap_content"
+	  android:layout_alignParentBottom="true"
+	  />
+	  
+	  <com.imaginea.android.imtabbar.another.INavigationBar
+	  android:id="@+id/navigationBar"
+	  android:layout_width="fill_parent"
+	  android:layout_height="45dip"
+	  android:layout_alignParentTop="true"
+	  android:background="#0000FF"
+	  
+
+	  />
+	    
+	  <FrameLayout
+	     android:layout_width="fill_parent"
+	    android:layout_height="fill_parent"
+	    android:id="@+id/tabcontent"
+	    android:layout_above="@+id/tabs"
+	    android:layout_below="@+id/navigationBar"
+	     />
+	     
+	  
+	   
+	  </RelativeLayout>
+</com.imaginea.android.imtabbar.another.ITabHost>
