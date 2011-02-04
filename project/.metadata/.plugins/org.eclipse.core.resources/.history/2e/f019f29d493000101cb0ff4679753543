@@ -1,0 +1,479 @@
+package com.imaginea.android.tabbar.api;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import android.app.Activity;
+import android.app.ActivityGroup;
+import android.app.LocalActivityManager;
+import android.content.Context;
+import android.content.Intent;
+import android.graphics.drawable.Drawable;
+import android.util.AttributeSet;
+import android.view.KeyEvent;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.TextView;
+
+import com.imaginea.android.tabbar.R;
+
+
+public class ImTabHost extends FrameLayout{
+
+
+	private ImTabWidget mTabWidget;
+	private ImNavigationBar mNavigationBar;
+	private FrameLayout mTabContent;
+	public List<ITabSpec> mTabSpecs;
+	private int mCurrentTab = -1;
+	private View mCurrentView = null;
+	/**
+	 * This field should be made private, so it is hidden from the SDK.
+	 * {@hide}
+	 */
+	protected LocalActivityManager mLocalActivityManager = null;
+	private OnKeyListener mTabKeyListener;
+
+	private Context mContext;
+
+
+	public ImTabHost(Context context) {
+		super(context);
+		this.mContext = context;
+		initTabHost();
+
+	}
+
+	public ImTabHost(Context context, AttributeSet attrs) {
+		super(context, attrs);
+		this.mContext = context;
+		initTabHost();
+	}
+
+	private void initTabHost() {
+		setFocusableInTouchMode(true);
+		setDescendantFocusability(FOCUS_AFTER_DESCENDANTS);
+
+		mCurrentTab = -1;
+		mCurrentView = null;
+		mTabSpecs = new ArrayList<ITabSpec>();
+	}
+
+	public ITabSpec newTabSpec(String tag) {
+		return new ITabSpec(mContext);
+	}
+
+	public ITabSpec currentTab()
+	{
+		return mTabSpecs.get(mCurrentTab);
+	}
+
+	public int currentTabNumber()
+	{
+		return mCurrentTab;
+	}
+
+
+
+	/**
+	 * <p>Call setup() before adding tabs if loading TabHost using findViewById().
+	 * <i><b>However</i></b>: You do not need to call setup() after getTabHost()
+	 * in {@link android.app.TabActivity TabActivity}.
+	 * Example:</p>
+<pre>mTabHost = (TabHost)findViewById(R.id.tabhost);
+mTabHost.setup();
+mTabHost.addTab(TAB_TAG_1, "Hello, world!", "Tab 1");
+	 */
+	public void setup() {
+		//setOrientation(LinearLayout.VERTICAL);
+		mTabWidget = (ImTabWidget) findViewById(R.id.tabs);
+		mTabContent = (FrameLayout)findViewById(R.id.tabcontent);
+		if (mTabWidget == null) {
+			throw new RuntimeException(
+			"Your TabHost must have a TabWidget whose id attribute is 'android.R.id.tabs'");
+		}
+
+		// KeyListener to attach to all tabs. Detects non-navigation keys
+		// and relays them to the tab content.
+		mTabKeyListener = new OnKeyListener() {
+			public boolean onKey(View v, int keyCode, KeyEvent event) {
+				switch (keyCode) {
+				case KeyEvent.KEYCODE_DPAD_CENTER:
+				case KeyEvent.KEYCODE_DPAD_LEFT:
+				case KeyEvent.KEYCODE_DPAD_RIGHT:
+				case KeyEvent.KEYCODE_DPAD_UP:
+				case KeyEvent.KEYCODE_DPAD_DOWN:
+				case KeyEvent.KEYCODE_ENTER:
+					return false;
+
+				}
+				mTabContent.requestFocus(View.FOCUS_FORWARD);
+				return mTabContent.dispatchKeyEvent(event);
+			}
+
+		};
+
+		mTabWidget.setTabSelectionListener(new ImTabWidget.OnTabSelectionChanged() {
+			public void onTabSelectionChanged(int tabIndex, boolean clicked) {
+				setCurrentTab(tabIndex);
+				if (clicked) {
+					mTabContent.requestFocus(View.FOCUS_FORWARD);
+				}
+			}
+		});
+
+		mTabContent = (FrameLayout) findViewById(R.id.tabcontent);
+		if (mTabContent == null) {
+			throw new RuntimeException(
+					"Your TabHost must have a FrameLayout whose id attribute is "
+					+ "'android.R.id.tabcontent'");
+		}
+
+
+		///setup navigation bar
+		mNavigationBar = (ImNavigationBar)findViewById(R.id.navigationBar);
+		mNavigationBar.setBackButtonListener(new OnClickListener() {
+
+			@Override
+			public void onClick(View v) {
+				mTabSpecs.get(mCurrentTab).mNavigationController.popActivity();
+			}
+		});
+	}
+
+
+	/**
+	 * Add a tab.
+	 * @param tabSpec Specifies how to create the indicator and content.
+	 */
+	public void addTab(ITabSpec tabSpec) {
+
+		View tabIndicator = tabSpec.mIndicatorStrategy.createIndicatorView();
+		tabIndicator.setOnKeyListener(mTabKeyListener);
+		mTabWidget.addView(tabIndicator);
+		mTabSpecs.add(tabSpec);
+
+		if (mCurrentTab == -1) {
+			setCurrentTab(0);
+		}
+	}
+
+
+	////////////////////////////////////////////////////////////////////////
+	public void setCurrentTab(int index)
+	{
+		setCurrentTab(index,true);
+	}
+	public void setCurrentTab(int index, boolean tabSwitch)
+	{
+		if (index < 0 || index >= mTabSpecs.size()) {
+			return;
+		}
+
+		if (index == mCurrentTab && tabSwitch) {
+			return;
+		}
+
+		/*get a handle of previous activity so we can notify it that it's view will be removed*/
+		Activity previousActivity = null;
+		if(mCurrentTab>=0 &&  mTabSpecs.get(mCurrentTab).numberOfActivities() >0)//check if there was a previous activity
+		{
+			if(tabSwitch)
+				previousActivity = mTabSpecs.get(mCurrentTab).topActivity();
+			else// if this is another activity pushed in same stack
+			{
+				if(mTabSpecs.get(mCurrentTab).numberOfActivities() >1)
+				{
+					previousActivity = mTabSpecs.get(mCurrentTab).activityAtIndex(mTabSpecs.get(mCurrentTab).numberOfActivities()-2);
+				}
+			}
+		}
+		
+		mTabContent.removeAllViews();
+		mCurrentTab = index;
+		final ITabSpec spec = mTabSpecs.get(index);
+
+		// Call the tab widget's focusCurrentTab(), instead of just
+		// selecting the tab.
+		mTabWidget.focusCurrentTab(mCurrentTab);
+
+		// tab content
+		// mCurrentView = spec.mContentStrategy.getContentView();
+		mCurrentView = spec.getContentView();
+
+		if (mCurrentView.getParent() == null) {
+			mTabContent
+			.addView(
+					mCurrentView,
+					new ViewGroup.LayoutParams(
+							ViewGroup.LayoutParams.FILL_PARENT,
+							ViewGroup.LayoutParams.FILL_PARENT));
+		}
+
+		if (!mTabWidget.hasFocus()) {
+			// if the tab widget didn't take focus (likely because we're in touch mode)
+			// give the current tab content view a shot
+			mCurrentView.requestFocus();
+		}
+
+		mTabContent.requestFocus(View.FOCUS_FORWARD);
+		// invokeOnTabChangeListener();
+
+		/*refresh title in navigationbar now */
+		refreshNavigationBarTitle();
+		
+		
+		/*notify the currentActivity activity that it's view will be in foreground now*/
+		Activity currentActivity = spec.topActivity();
+		if(currentActivity instanceof OnNavigationEventListener)
+			((OnNavigationEventListener) currentActivity).activityViewWillAppear();
+		
+		/*notify previous activity that it's view will be removed now*/
+		if(previousActivity != null && previousActivity instanceof OnNavigationEventListener)
+			((OnNavigationEventListener)previousActivity).activityViewWillDisAppear();
+	}
+
+	private void refreshNavigationBarTitle()
+	{
+
+		Activity topActivity = mTabSpecs.get(mCurrentTab).topActivity();
+		CharSequence title = topActivity.getTitle();
+		if(title != null && title.length() >0)
+			ImTabHost.this.mNavigationBar.setTitle(title);
+		if(mTabSpecs.get(mCurrentTab).numberOfActivities() > 1){
+			Activity previousActivity = mTabSpecs.get(mCurrentTab).activityAtIndex(0);
+			CharSequence prevActivityTitle = previousActivity.getTitle();
+			if(prevActivityTitle != null && prevActivityTitle.length() >0)
+				mNavigationBar.setBackButtonTitle(prevActivityTitle);
+			else
+				mNavigationBar.setBackButtonTitle("back");
+			mNavigationBar.showBackButton();
+		}
+		else
+			mNavigationBar.hideBackButton();
+	}
+
+	public void restartAllActivitiesForContext(ActivityGroup context)
+	{
+		for(ITabSpec spec: mTabSpecs)
+		{
+			spec.restartAllActivities(context);
+		}
+	}
+
+	/////////////////////////////////////////////////////////////////////////////////////////////////
+	public  class ITabSpec {
+
+		private INavigationController mNavigationController;
+
+		Context context;
+		private IndicatorStrategy mIndicatorStrategy;
+
+		public ITabSpec(Context ctx)
+		{
+			this.context = ctx;
+			mNavigationController = new INavigationController((ActivityGroup)ctx);
+		}
+
+		/**
+		 * Specify a label as the tab indicator.
+		 */
+		public ITabSpec setIndicator(CharSequence label) {
+			mIndicatorStrategy = new LabelIndicatorStrategy(label);
+			return this;
+		}
+
+		/**
+		 * Specify a label and icon
+		 */
+		public ITabSpec setIndicator(CharSequence label, Drawable icon)
+		{
+			mIndicatorStrategy = new LabelAndIconIndicatorStrategy(label,icon);
+			return this;
+		}
+
+		public View getContentView()
+		{
+			return mNavigationController.mActivityStack.topView();
+		}
+
+		public final Activity topActivity()
+		{
+			return mNavigationController.mActivityStack.peek();
+		}
+
+		public final Activity activityAtIndex(int location)
+		{
+			return mNavigationController.mActivityStack.activityAtIndex(location);
+		}
+
+		public final int numberOfActivities()
+		{
+			return mNavigationController.mActivityStack.size();
+		}
+
+		public final INavigationController navigationController()
+		{
+			return mNavigationController;
+		}
+
+		public Activity pushActivity(Intent intent)
+		{
+			return mNavigationController.pushActivity(intent);
+		}
+
+		public void popActivity()
+		{
+			mNavigationController.popActivity();
+		}
+
+		public void restartAllActivities(ActivityGroup context)
+		{
+			mNavigationController.restartAllActivities(context);
+		}
+
+		public final IndicatorStrategy getIndicatorStrategy()
+		{
+			return mIndicatorStrategy; 
+		}
+
+
+	} 
+
+	///////////////////////////////////////////////////////////////////////////////////
+	//////////////////////////////////////////////////////////////////////////////////
+	public interface IndicatorStrategy
+	{
+		public View createIndicatorView();
+	}
+	/**
+	 * How to create a tab indicator that just has a label.
+	 */
+	public class LabelIndicatorStrategy implements IndicatorStrategy {
+
+		private final CharSequence mLabel;
+
+		public LabelIndicatorStrategy(CharSequence label) {
+			mLabel = label;
+		}
+
+		public View createIndicatorView() {
+			final Context context = ImTabHost.this.mContext;
+			LayoutInflater inflater =
+				(LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+			View tabIndicator = inflater.inflate(R.layout.tab_indicator,
+					ImTabHost.this.mTabWidget, // tab widget is the parent
+					false); 
+
+			final TextView tv = (TextView) tabIndicator.findViewById(R.id.title);
+			tv.setText(mLabel);
+
+			tabIndicator.setBackgroundResource(R.drawable.tab_indicator_v4);
+			tv.setTextColor(context.getResources().getColorStateList(R.color.tab_indicator_text_v4));
+
+			return tabIndicator;
+		}
+
+		public final CharSequence getLabel()
+		{
+			return mLabel;
+		}
+	}
+
+	/**
+	 * How we create a tab indicator that has a label and an icon
+	 */
+	protected class LabelAndIconIndicatorStrategy implements IndicatorStrategy {
+
+		private final CharSequence mLabel;
+		private final Drawable mIcon;
+
+		private LabelAndIconIndicatorStrategy(CharSequence label, Drawable icon) {
+			mLabel = label;
+			mIcon = icon;
+		}
+
+		public View createIndicatorView() {
+			final Context context = getContext();
+			LayoutInflater inflater =
+				(LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+			View tabIndicator = inflater.inflate(R.layout.tab_indicator,
+					mTabWidget, // tab widget is the parent
+					false); // no inflate params
+
+					final TextView tv = (TextView) tabIndicator.findViewById(R.id.title);
+					tv.setText(mLabel);
+
+					final ImageView iconView = (ImageView) tabIndicator.findViewById(R.id.icon);
+					iconView.setImageDrawable(mIcon);
+					tabIndicator.setBackgroundResource(R.drawable.tab_indicator_v4);
+					tv.setTextColor(context.getResources().getColorStateList(R.color.tab_indicator_text_v4));
+
+					return tabIndicator;
+		}
+
+		public final CharSequence getLabel()
+		{
+			return mLabel;
+		}
+
+		public final Drawable getIcon()
+		{
+			return mIcon;
+		}
+	}
+
+
+
+
+
+
+
+	public class INavigationController {
+
+		private ImActivityStack mActivityStack;
+
+
+		public INavigationController(ActivityGroup ctx)
+		{
+			mActivityStack = new ImActivityStack(ctx);
+		}
+
+
+		public  Activity pushActivity(Intent i){
+			Activity topActivity = mActivityStack.push(i);
+			setCurrentTab(currentTabNumber(), false);
+			return topActivity;
+		}
+		public void popActivity(){
+			mActivityStack.pop();
+			if(mActivityStack.size() >0)
+				setCurrentTab(currentTabNumber(), false);
+			//refreshNavigationBarTitle();
+		}
+		public void popToRootActivity(){
+			;
+		}
+		public void getActivityAtIndex(){
+			;
+		}
+
+		@Deprecated
+		public void restartAllActivities(ActivityGroup context)
+		{
+			mActivityStack.restartAllActivitiesForGivenContext(context);
+		}
+
+	}
+
+
+
+
+
+
+
+}
+

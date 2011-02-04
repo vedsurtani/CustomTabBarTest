@@ -1,0 +1,78 @@
+package com.imaginea.tabbar.api;
+
+import android.content.Context;
+import android.graphics.Canvas;
+import android.util.AttributeSet;
+import android.view.LayoutInflater;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
+import android.widget.TextView;
+
+import com.imaginea.android.tabbar.R;
+
+
+public class ImNavigationBar extends LinearLayout{
+	private Context mContext;
+	private TextView titleTextView;
+	private Button backButton;
+	
+	
+	public ImNavigationBar(Context context) {
+		this(context,null);
+	}
+	
+	public ImNavigationBar(Context context, AttributeSet attrs) {
+        this(context, attrs, 0);
+    }
+	
+	public ImNavigationBar(Context context, AttributeSet attrs, int defStyle) {
+        super(context, attrs);
+        
+        this.mContext = context;
+        initNavigationBar();
+    }
+	
+
+    private void initNavigationBar() {
+        setOrientation(LinearLayout.HORIZONTAL);
+        RelativeLayout container = new RelativeLayout(mContext);
+       LayoutInflater inflater = (LayoutInflater)mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+       inflater.inflate(R.layout.navigation_bar,container );
+       this.addView(container);
+       titleTextView = (TextView)container.findViewById(R.id.titleView);
+       backButton = (Button)container.findViewById(R.id.backButton);
+    }
+    
+    public void setBackButtonListener(OnClickListener listener)
+    {
+    	backButton.setOnClickListener(listener);
+    }
+    
+    public void setTitle(CharSequence title)
+    {
+    	titleTextView.setText(title);
+    }
+    
+    public void setBackButtonTitle(CharSequence title)
+    {
+    	backButton.setText(title);
+    }
+    
+    public void hideBackButton()
+    {
+    	backButton.setVisibility(GONE);
+    }
+    public void showBackButton()
+    {
+    	backButton.setVisibility(VISIBLE);
+    }
+    
+    
+
+    @Override
+    public void dispatchDraw(Canvas canvas) {
+        super.dispatchDraw(canvas);
+    }
+   
+}
